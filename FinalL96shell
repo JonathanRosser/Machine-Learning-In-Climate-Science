@@ -1,0 +1,17 @@
+NOISE=0
+STD=0
+
+while((${NOISE} < 5))
+do 
+	while((${STD} < 5))
+	do
+		export NOISE
+		export STD
+		sbatch FinalL96submitshell 
+		echo ${NOISE}
+		echo ${STD}
+		let STD=STD+1
+	done
+	STD=0
+	let NOISE=NOISE+1
+done

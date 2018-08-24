@@ -1,0 +1,25 @@
+NOISE=0
+STD=0
+H=0
+
+while((${H} < 3))
+do
+	while((${NOISE} < 5))
+	do	 
+		while((${STD} < 5))
+		do
+			export H
+			export NOISE
+			export STD
+			sbatch FinalL96ENFlowsubmitshell 
+			echo ${H}
+			echo ${NOISE}
+			echo ${STD}
+			let STD=STD+1
+		done
+		STD=0
+		let NOISE=NOISE+1
+	done
+	NOISE=0
+	let H=H+1
+done

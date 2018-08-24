@@ -1,0 +1,130 @@
+from scipy.integrate import odeint
+import matplotlib.pyplot as plt
+import numpy as np
+
+#This program is designed to calculate a run of the Lorenz 96 model given initial conditions and parameters
+
+
+#Parameters
+K=36 #Number of slow variables 
+J=10 #Number of fast variables per slow variable
+h=1  #Interaction coefficient which couples fast and slow variables
+F=10 #Controls the strength of external large-scale forcing (acts only on the slow variables)
+c=10 #Controls how rapidly the fast variables are damped relative to the slow
+b=10 #Controls the amplitude of non-linear interactions between fast variables
+
+#Create initial conditions
+
+x0=np.random.rand(K*(J+1))
+
+#Create a time range
+
+t=np.arange(0.0,10.0,0.01)
+
+#Create the function which will calculate the derivative given the current values
+#x will be the vector including all of the variables. It will contain K slow variables and JK fast variables. Therefore it will have (J+1)K elements and the first K elements will be the slow variables, the next J will be the fast variables coupled to the first slow variable etc. This will then be the same structure for the derivative vector.
+
+
+def Lorenz96(x,t):
+    #Create vector for the derivatives
+    d=np.zeros(K*(J+1))
+    #Slow variable case
+    #Consider the edge cases first (i=1,2,K):
+    d[0]=-x[K-1]*(x[K-2]-x[1])-x[0]+F-h*c*np.mean(x[K:K+J])
+    d[1]=-x[0]*(x[K-1]-x[2])-x[1]+F-h*c*np.mean(x[K+J:K+2*J])
+    d[K-1]=-x[K-2]*(x[K-3]-x[0])-x[K-1]+F-h*c*np.mean(x[K+J*(K-1):K+J*(K)])
+    #General case:
+    for i in range(2,K-1):
+        d[i]=-x[i-1]*(x[i-2]-x[i+1])-x[i]+F-h*c*np.mean(x[K+J*i:K+J*(i+1)])
+
+#Fast variable case
+    for l in range(0,K):
+        #Consider the edge cases first (i=1,J-1,J):
+        N=K+l*J
+        d[N]=c*(-b*x[N+1]*(x[N+2]-x[N+J-1])-x[N]+h*x[l]/J)
+        d[N+J-1]=c*(-b*x[N]*(x[N+1]-x[N+J-2])-x[N+J-1]+h*x[l]/J)
+        d[N+J-2]=c*(-b*x[N+J-1]*(x[N]-x[N+J-3])-x[N+J-2]+h*x[l]/J)
+    #General case:
+        for i in range(1,J-2):
+            N=K+l*J+i
+            d[N]=c*(-b*x[N+1]*(x[N+2]-x[N-1])-x[N]+h*x[l]/J)
+    return d
+
+
+
+#Run the ODE solver and calculate the solution
+print("solve ODE")
+x=odeint(Lorenz96,x0,t)
+
+
+#Calculate statistics for the slow and fast variables
+print("Calculate basic statistics")
+slowmean=np.mean(x[:,:K],1)
+fastmean=np.mean(x[:,K:],1)
+slowvar=np.var(x[:,:K],1)
+fastvar=np.var(x[:,K:],1)
+
+#Running average function
+def runavg(func,x,W):
+    #Function is the function which will be calculated over each of the windows, i.e. a mean or variance etc
+    #x is the array over which the function will be calculated
+    #W is the window length
+    print(func)
+    if func==np.cov:
+        y=np.zeros((len(x)-W,K*(J+1),K*(J+1)))
+        for i in range(0,len(x)-W):
+            y[i,:,:]=np.cov(x[i:W+i],rowvar=False)
+        return y
+    else: 
+        y=np.zeros(len(x)-W)
+        for i in range(0,len(x)-W):
+            y[i]=func(x[i:W+i])
+        return y
+
+
+#Function to calculate the XY term
+
+def XY(x):
+    y=np.mean(x[:,:K])*np.mean(x[:,K:])
+    return y
+
+
+#Function to calculate the XY term which will allow for correlation between X and Y which might be significant
+
+def XY2(x):
+    y=np.zeros((window,K))
+    for i in range(0,K):
+        y[:,i]=np.mean(x[:,K+i*J:K+(i+1)*J],axis=1)
+    XY=np.mean(np.multiply(x[:,:K],y))
+    return XY
+
+
+
+#Calculate long term running average statistics
+print("Calculate running average statistics")
+window=400
+slowrunavg=runavg(np.mean,np.mean(x[:,:K],1),window)
+fastrunavg=runavg(np.mean,np.mean(x[:,K:],1),window)
+slowsquaredrunavg=runavg(np.mean,np.mean(np.square(x[:,:K]),1),window)
+fastsquaredrunavg=runavg(np.mean,np.mean(np.square(x[:,K:]),1),window)
+covrunavg=runavg(np.cov,x,window)
+xyrunavg=runavg(XY,x,window)
+xy2runavg=runavg(XY2,x,window)
+
+#Calculate the average covariance between X variables and Y variables
+C=np.mean((np.mean(covrunavg[:,:K,K:],axis=(1,2)),np.mean(covrunavg[:,K:,:K],axis=(1,2))),axis=0)
+
+
+
+#Calculate the relations which were given in ESM2.0:
+#Relation 14
+plt.close()
+plt.plot(slowsquaredrunavg)
+plt.plot(F*slowrunavg-h*c*xy2runavg)
+plt.savefig("D:\\Jonathan\\Documents\\Work Placements\\Caltech\\Figures\\Lorenz96_relation14.png")
+plt.close()
+plt.plot(fastsquaredrunavg)
+plt.plot(h/J*xy2runavg)
+plt.savefig("D:\\Jonathan\\Documents\\Work Placements\\Caltech\\Figures\\Lorenz96_relation15.png")
+
+

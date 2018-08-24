@@ -1,0 +1,5 @@
+START=1839321
+END=1839395
+for ((i=START;i<=END;i++)); do
+    scancel $i
+done
